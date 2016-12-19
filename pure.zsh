@@ -52,15 +52,6 @@ prompt_pure_check_cmd_exec_time() {
 	}
 }
 
-prompt_pure_clear_screen() {
-	# enable output to terminal
-	zle -I
-	# clear screen and move cursor to (0, 0)
-	print -n '\e[2J\e[0;0H'
-	# print preprompt
-	prompt_pure_preprompt_render precmd
-}
-
 prompt_pure_check_git_arrows() {
 	# reset git arrows
 	prompt_pure_git_arrows=
@@ -112,16 +103,6 @@ prompt_pure_preexec() {
 	prompt_pure_set_title 'ignore-escape' "$PWD:t: $2"
 }
 
-# string length ignoring ansi escapes
-prompt_pure_string_length_to_var() {
-	local str=$1 var=$2 length
-	# perform expansion on str and check length
-	length=$(( ${#${(S%%)str//(\%([KF1]|)\{*\}|\%[Bbkf])}} ))
-
-	# store string length in variable as specified by caller
-	typeset -g "${var}"="${length}"
-}
-
 prompt_pure_preprompt_render() {
 	# store the current prompt_subst setting so that it can be restored later
 	local prompt_subst_status=$options[prompt_subst]
@@ -150,55 +131,15 @@ prompt_pure_preprompt_render() {
 	# make sure prompt_pure_last_preprompt is a global array
 	typeset -g -a prompt_pure_last_preprompt
 
+	# prompt turns red if the previous command didn't exit with 0
+	preprompt+=" %(?.%F{magenta}.%F{red})${PURE_PROMPT_SYMBOL:-❯}%f "
+
+	PROMPT="$preprompt"
+
 	# if executing through precmd, do not perform fancy terminal editing
-	if [[ "$1" == "precmd" ]]; then
-		print -P "\n${preprompt}"
-	else
+	if [[ "$1" != "precmd" ]]; then
 		# only redraw if the expanded preprompt has changed
 		[[ "${prompt_pure_last_preprompt[2]}" != "${(S%%)preprompt}" ]] || return
-
-		# calculate length of preprompt and store it locally in preprompt_length
-		integer preprompt_length lines
-		prompt_pure_string_length_to_var "${preprompt}" "preprompt_length"
-
-		# calculate number of preprompt lines for redraw purposes
-		(( lines = ( preprompt_length - 1 ) / COLUMNS + 1 ))
-
-		# calculate previous preprompt lines to figure out how the new preprompt should behave
-		integer last_preprompt_length last_lines
-		prompt_pure_string_length_to_var "${prompt_pure_last_preprompt[1]}" "last_preprompt_length"
-		(( last_lines = ( last_preprompt_length - 1 ) / COLUMNS + 1 ))
-
-		# clr_prev_preprompt erases visual artifacts from previous preprompt
-		local clr_prev_preprompt
-		if (( last_lines > lines )); then
-			# move cursor up by last_lines, clear the line and move it down by one line
-			clr_prev_preprompt="\e[${last_lines}A\e[2K\e[1B"
-			while (( last_lines - lines > 1 )); do
-				# clear the line and move cursor down by one
-				clr_prev_preprompt+='\e[2K\e[1B'
-				(( last_lines-- ))
-			done
-
-			# move cursor into correct position for preprompt update
-			clr_prev_preprompt+="\e[${lines}B"
-		# create more space for preprompt if new preprompt has more lines than last
-		elif (( last_lines < lines )); then
-			# move cursor using newlines because ansi cursor movement can't push the cursor beyond the last line
-			printf $'\n'%.0s {1..$(( lines - last_lines ))}
-		fi
-
-		# disable clearing of line if last char of preprompt is last column of terminal
-		local clr='\e[K'
-		(( COLUMNS * lines == preprompt_length )) && clr=
-
-		# modify previous preprompt
-		print -Pn "${clr_prev_preprompt}\e[${lines}A\e[${COLUMNS}D${preprompt}${clr}\n"
-
-		if [[ $prompt_subst_status = 'on' ]]; then
-			# re-eanble prompt_subst for expansion on PS1
-			setopt prompt_subst
-		fi
 
 		# redraw prompt (also resets cursor position)
 		zle && zle .reset-prompt
@@ -328,7 +269,7 @@ prompt_pure_setup() {
 	# if output doesn't end with a newline
 	export PROMPT_EOL_MARK=''
 
-	prompt_opts=(subst percent)
+	prompt_opts=(subst percent cr)
 
 	zmodload zsh/datetime
 	zmodload zsh/zle
@@ -350,21 +291,14 @@ prompt_pure_setup() {
 	zstyle ':vcs_info:git*' formats ' %b' 'x%R'
 	zstyle ':vcs_info:git*' actionformats ' %b|%a' 'x%R'
 
-	# if the user has not registered a custom zle widget for clear-screen,
-	# override the builtin one so that the preprompt is displayed correctly when
-	# ^L is issued.
-	if [[ $widgets[clear-screen] == 'builtin' ]]; then
-		zle -N clear-screen prompt_pure_clear_screen
-	fi
-
 	# show username@host if logged in through SSH
 	[[ "$SSH_CONNECTION" != '' ]] && prompt_pure_username=' %F{242}%n@%m%f'
 
 	# show username@host if root, with username in white
 	[[ $UID -eq 0 ]] && prompt_pure_username=' %F{white}%n%f%F{242}@%m%f'
 
-	# prompt turns red if the previous command didn't exit with 0
-	PROMPT="%(?.%F{magenta}.%F{red})${PURE_PROMPT_SYMBOL:-❯}%f "
+	# create prompt
+	prompt_pure_preprompt_render 'precmd'
 }
 
 prompt_pure_setup "$@"
