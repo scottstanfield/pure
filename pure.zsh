@@ -117,44 +117,58 @@ prompt_pure_preprompt_render() {
 	local git_color=242
 	[[ -n ${prompt_pure_git_last_dirty_check_timestamp+x} ]] && git_color=red
 
-	# construct preprompt, beginning with path
-	local preprompt="%F{blue}%~%f"
-	# git info
-	preprompt+="%F{$git_color}${vcs_info_msg_0_}${prompt_pure_git_dirty}%f"
-	# git pull/push arrows
-	preprompt+="%F{cyan}${prompt_pure_git_arrows}%f"
-	# username and machine if applicable
-	preprompt+=$prompt_pure_username
-	# execution time
-	preprompt+="%F{yellow}${prompt_pure_cmd_exec_time}%f"
+
+	####################
+	# LEFT-SIDE PROMPT
+	####################
+	
+	# abbreviated path 
+	local left="%F{blue}%~%f" 
+
+	# prompt turns red if the previous command didn't exit with 0
+	left+=" %(?.%F{green}.%F{red})${PURE_PROMPT_SYMBOL:-❯}%f "
+	
+	####################
+	# RIGHT-SIDE PROMPT
+	####################
+
+	# command execution time (if any)
+	local right="%F{yellow}${prompt_pure_cmd_exec_time}%f"
+
+	# repo name
+	right+="%F{$git_color}${vcs_info_msg_0_}${prompt_pure_git_dirty}%f"
+
+	# arrows for push / pull
+	right+="%F{cyan}${prompt_pure_git_arrows}%f"
+
+	# user name if in SSH
+	right+=$prompt_pure_username
 
 	# make sure prompt_pure_last_preprompt is a global array
 	typeset -g -a prompt_pure_last_preprompt
 
-	# prompt turns red if the previous command didn't exit with 0
-	preprompt+=" %(?.%F{green}.%F{red})${PURE_PROMPT_SYMBOL:-❯}%f "
-
-	PROMPT="$preprompt"
+	PROMPT="$left"
+	RPROMPT="$right"
 
 	# if executing through precmd, do not perform fancy terminal editing
 	if [[ "$1" != "precmd" ]]; then
 		# only redraw if the expanded preprompt has changed
-		[[ "${prompt_pure_last_preprompt[2]}" != "${(S%%)preprompt}" ]] || return
+		[[ "${prompt_pure_last_preprompt[2]}" != "${(S%%)right}" ]] || return
 
 		# redraw prompt (also resets cursor position)
 		zle && zle .reset-prompt
 	fi
 
 	# store both unexpanded and expanded preprompt for comparison
-	prompt_pure_last_preprompt=("$preprompt" "${(S%%)preprompt}")
+	prompt_pure_last_preprompt=("$right" "${(S%%)right}")
 }
 
 prompt_pure_precmd() {
 	# check exec time and store it in a variable
 	prompt_pure_check_cmd_exec_time
 
-	# by making sure that prompt_pure_cmd_timestamp is defined here the async functions are prevented from interfering
-	# with the initial preprompt rendering
+	# by making sure that prompt_pure_cmd_timestamp is defined here the async functions 
+	# are prevented from interfering with the initial preprompt rendering
 	prompt_pure_cmd_timestamp=
 
 	# check for git arrows
