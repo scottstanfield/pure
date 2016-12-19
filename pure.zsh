@@ -132,7 +132,7 @@ prompt_pure_preprompt_render() {
 	typeset -g -a prompt_pure_last_preprompt
 
 	# prompt turns red if the previous command didn't exit with 0
-	preprompt+=" %(?.%F{magenta}.%F{red})${PURE_PROMPT_SYMBOL:-❯}%f "
+	preprompt+=" %(?.%F{green}.%F{red})${PURE_PROMPT_SYMBOL:-❯}%f "
 
 	PROMPT="$preprompt"
 
