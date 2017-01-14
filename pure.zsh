@@ -22,6 +22,35 @@
 # \e8   => restore cursor position
 # \e[K  => clears everything after the cursor on the current line
 # \e[2K => clear everything on the current line
+#
+
+function prompt_error {
+	local B=''
+	B="%(?.%F{green}.%F{red}[%?])"
+	echo $B
+}
+
+function prompt_color {
+	local B=''
+	B="%(?.%F{green}.%F{red})"
+	echo $B
+}
+
+function prompt_tail {
+	# left+=" %(?.%F{green}.%F{red})${PURE_PROMPT_SYMBOL:-❯}%f "
+    local B=''
+	local normal="●"		# &#9679; "Black Circle"
+	local error="✖"
+
+	local promptchar="%(?.$normal.$error)"
+
+	if [[ `tput cols` -gt 60 ]]; then
+		B=$promptchar
+	else
+		B="'\n" + $promptchar
+	fi
+	echo $B
+}
 
 
 # turns seconds into human readable time
@@ -121,12 +150,14 @@ prompt_pure_preprompt_render() {
 	####################
 	# LEFT-SIDE PROMPT
 	####################
+	# PROMPT='$green%m %{$fg_bold[green]%}%4~%{$fg_bold[red]%}%(?.. [%?]) $(prompt_tail) '
 	
 	# abbreviated path 
-	local left="%F{blue}%~%f" 
+	local left="%F{blue}%m %~%f" 
 
 	# prompt turns red if the previous command didn't exit with 0
-	left+=" %(?.%F{green}.%F{red})${PURE_PROMPT_SYMBOL:-❯}%f "
+	#left+=" %(?.%F{green}.%F{red})$(prompt_tail)%f "
+	left+=" $(prompt_color)$(prompt_tail)%f "
 	
 	####################
 	# RIGHT-SIDE PROMPT
@@ -148,7 +179,7 @@ prompt_pure_preprompt_render() {
 	typeset -g -a prompt_pure_last_preprompt
 
 	PROMPT="$left"
-	RPROMPT="$right"
+	RPROMPT="$(prompt_error)$right"
 
 	# if executing through precmd, do not perform fancy terminal editing
 	if [[ "$1" != "precmd" ]]; then
@@ -316,3 +347,5 @@ prompt_pure_setup() {
 }
 
 prompt_pure_setup "$@"
+
+
